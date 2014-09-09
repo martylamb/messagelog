@@ -95,4 +95,25 @@ public class MessageTransactionTest {
             fail("should have failed crc check!");
         } catch (IOException expected) {}
     }
+    
+    @Test
+    public void testListWrite() throws Exception {
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        DataOutputStream out = new DataOutputStream(bout);
+
+        java.util.ArrayList<byte[]> list = new java.util.ArrayList<>();
+        list.add(new byte[] {1});
+        list.add(new byte[] {2, 2});
+        MessageTransaction mt = new MessageTransaction(list);
+        mt.writeTo(out);
+        out.close();
+
+        MessageTransaction mt2 = new MessageTransaction(new DataInputStream(new ByteArrayInputStream(bout.toByteArray())));
+        int i = 1;
+        for (byte[] b : mt2.getMessages()) {
+            assertEquals(i, b.length);
+            for (int j = 0; j < i; ++j) assertEquals(b[j], i);
+            ++i;
+        }
+    }
 }
