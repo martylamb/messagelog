@@ -175,6 +175,27 @@ public class FileMessageLogTest {
         } catch (IOException expected) {}
     }
     
+    @Test
+    public void testCorruptedFile() throws Exception {
+        FileMessageLog fml = newFML();
+        fml.log(new byte[]{1, 1, 1, 1, 1, 1, 1});
+        fml.sync();
+        long pos = fml.getFile().length();
+        fml.log(new byte[]{2, 2, 2, 2, 2, 2, 2});
+        fml.close();
+
+        RandomAccessFile r = new RandomAccessFile(fml.getFile(), "rw");
+        r.seek(pos - 1);
+        r.write(2);
+        r.close();
+        
+        try {
+            fml = new FileMessageLog(fml.getFile());
+            fail("Loaded corrupted file!");
+        } catch(IOException expected) {}
+        
+    }
+    
     private class TestMessageHandler implements MessageHandler {
         int x = 0;
         
