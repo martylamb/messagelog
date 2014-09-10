@@ -2,6 +2,7 @@ package com.martiansoftware.messagelog;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.util.List;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -30,6 +31,24 @@ public class FileMessageLogTest {
         FileMessageLog fml = newFML();
         write(fml, "this", "is", "a", "test");
         fml.close();
+        
+        fml = newFML();
+        List<byte[]> list = new java.util.ArrayList<>();
+        list.add("this".getBytes());
+        list.add("is".getBytes());
+        list.add("a".getBytes());
+        list.add("test".getBytes());
+        fml.log(list);
+        fml.close();
+    }
+    
+    @Test
+    public void TestOverlap() throws IOException {
+        FileMessageLog fml = newFML();        
+        try {
+            FileMessageLog fml2 = new FileMessageLog(fml.getFile());
+            fail("Able to open same FileMessageLog twice!");
+        } catch (IOException expected) {}
     }
     
     /**
@@ -42,6 +61,43 @@ public class FileMessageLogTest {
         fml.close();
     }
 
+    private int countMessages(File f) throws IOException {
+        TestMessageHandler tmh = new TestMessageHandler();
+        FileMessageLog fml = new FileMessageLog(f, tmh);
+        fml.close();
+        return tmh.getCount();
+    }
+    
+    private void shrink(File f) throws IOException {
+        RandomAccessFile r = new RandomAccessFile(f, "rw");
+        r.setLength(r.length() - 1);        
+    }
+    
+    @Test
+    public void testTruncatedLog() throws IOException {
+        FileMessageLog fml = newFML();
+        File f = fml.getFile();
+        for (int i = 0; i < 10; ++i) fml.log(("test " + i).getBytes());
+        fml.close();
+        
+        assertEquals(10, countMessages(f));
+        long len = f.length();
+        
+        fml = new FileMessageLog(f);
+        fml.log(("test 10").getBytes());
+        fml.close();
+        long len2 = f.length();        
+        assertEquals(11, countMessages(f));
+        
+        while (f.length() > len) {
+            shrink(f);
+            assertEquals(10, countMessages(f));
+        }
+        
+        shrink(f);
+        assertEquals(9, countMessages(f));
+    }
+    
     @Test
     public void testSyncTiming() throws IOException {
         long start, end, dur1, dur2;
@@ -77,6 +133,46 @@ public class FileMessageLogTest {
         fml = new FileMessageLog(fml.getFile(), tmh);
         
         assertEquals(1000, tmh.getCount());
+        
+        TestMessageHandler tmh2 = new TestMessageHandler();
+        fml.replay(tmh2);        
+        assertEquals(1000, tmh2.getCount());
+        
+        fml.replay(null);
+    }
+    
+    @Test
+    public void testNoMessage() throws Exception {
+        FileMessageLog fml = newFML();
+        fml.log();
+        fml.close();
+        assertEquals(0, fml.getFile().length());
+        
+        fml = newFML();
+        fml.log(new java.util.ArrayList<byte[]>());
+        fml.close();
+        assertEquals(0, fml.getFile().length());
+        
+        fml = newFML();
+        fml.log((List) null);
+        fml.close();
+        assertEquals(0, fml.getFile().length());
+        
+        fml = newFML();
+        fml.log((byte[][]) null);
+        fml.close();
+        assertEquals(0, fml.getFile().length());
+    }
+    
+    @Test
+    public void noLogAfterClose() throws Exception {        
+        FileMessageLog fml = newFML();
+        fml.log(new byte[]{1});
+        fml.close();
+        try {
+            fml.log(new byte[]{2});
+            fail("Able to write after close!");
+        } catch (IOException expected) {}
     }
     
     private class TestMessageHandler implements MessageHandler {
