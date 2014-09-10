@@ -9,7 +9,12 @@ import java.nio.channels.OverlappingFileLockException;
 import java.util.List;
 
 /**
- *
+ * A robust file-based log of byte-array-based messages.  This can be used as 
+ * a simple command-sourcing or event-sourcing.  Simplicity is prioritized
+ * above performance.  It is possible, at the expense of performance, to force
+ * all writes to synchronize to the underlying disk before returning from the
+ * log() call.  See sync() and setAutoSync().
+ * 
  * @author mlamb
  */
 public class FileMessageLog implements MessageLog {
@@ -19,11 +24,28 @@ public class FileMessageLog implements MessageLog {
     private final FileLock _flock;
     private final Object _lock = new Object();
     private volatile boolean _autoSync = false;
-    
+   
+    /**
+     * Creates a new FileMessageLog using the specified File, creating the file
+     * on disk if necessary.
+     * 
+     * @param f the file to use for message storage
+     * @throws IOException 
+     */
     public FileMessageLog(File f) throws IOException {
         this(f, null);
     }
     
+    /**
+     * Creates a new FileMessageLog using the specified File, creating the file
+     * on disk if necessary.
+     * 
+     * 
+     * @param f the file to use for message storage
+     * @param h a MessageHandler that will be called for each message read
+     * from the file when it is opened (e.g., to restore application
+     * state from the log)
+     */
     public FileMessageLog(File f, MessageHandler h) throws IOException {
         _f = f;
         _raf = new RandomAccessFile(f, "rw");
@@ -39,10 +61,22 @@ public class FileMessageLog implements MessageLog {
         replay(h);        
     }
     
+    /**
+     * Returns the underlying file used for message storage.
+     * @return the underlying file used for message storage
+     */
     public File getFile() {
         return _f;
     }
     
+    /**
+     * If set to true, all writes will be forced out to disk before returning from
+     * log().  This provides greate robustness in the event of e.g. power failure,
+     * but comes at the cost of performance.  Default is false.
+     * 
+     * @param autoSync if true, automatically force all writes to disk
+     * @return this FileMessageLog
+     */
     public FileMessageLog setAutoSync(boolean autoSync) {
         synchronized(_lock) {
             _autoSync = autoSync;
@@ -50,8 +84,15 @@ public class FileMessageLog implements MessageLog {
         return this;
     }
 
+    /**
+     * Replays all messages from this FileMessageLog to the specified MessageHandler
+     * 
+     * @param h the MessageHandler to receive replayed messages
+     * @return this FileMessageLog
+     * @throws IOException 
+     */
     @Override
-    public void replay(MessageHandler h) throws IOException {
+    public FileMessageLog replay(MessageHandler h) throws IOException {
         long dataLength = 0;
         synchronized(_lock) {
             failIfClosed();
@@ -69,18 +110,41 @@ public class FileMessageLog implements MessageLog {
                 }            
             }
         }
+        return this;
     }
     
+    /**
+     * Writes messages to the log.  More than one message can be supplied; multiple
+     * messages will be written atomically together (if one fails, they all fail,
+     * and subsequent replays of the log will not replay any of the messages in
+     * a set that failed).
+     * 
+     * @param messages the messages to write
+     * @return this FileMessageLog
+     * @throws IOException 
+     */
     @Override
-    public void log(byte[]... messages) throws IOException {
-        if (messages == null || messages.length == 0) return;
+    public FileMessageLog log(byte[]... messages) throws IOException {
+        if (messages == null || messages.length == 0) return this;
         writeTransaction(new MessageTransaction(messages));
+        return this;
     }
 
+    /**
+     * Writes messages to the log.  More than one message can be supplied; multiple
+     * messages will be written atomically together (if one fails, they all fail,
+     * and subsequent replays of the log will not replay any of the messages in
+     * a set that failed).
+     * 
+     * @param messages the messages to write
+     * @return this FileMessageLog
+     * @throws IOException 
+     */
     @Override
-    public void log(List<byte[]> messages) throws IOException {
-        if (messages == null || messages.isEmpty()) return;
+    public FileMessageLog log(List<byte[]> messages) throws IOException {
+        if (messages == null || messages.isEmpty()) return this;
         writeTransaction(new MessageTransaction(messages));
+        return this;
     }
     
     private void failIfClosed() throws IOException {
@@ -95,17 +159,35 @@ public class FileMessageLog implements MessageLog {
         }
     }
     
-    public void sync() throws IOException {
+    /**
+     * Forces any pending writes out to disk.  May be used explicitly instead
+     * of relying on setAutoSync(true) in situations where performance is
+     * important and the impact on the application of failed writes is well
+     * understood by the developer.
+     * 
+     * @return this FileMessageLog
+     * @throws IOException 
+     */
+    public FileMessageLog sync() throws IOException {
         synchronized(_lock) {
             _raf.getChannel().force(false);
         }
+        return this;
     }
     
-    public void close() throws IOException {
+    /**
+     * Closes this FileMessageLog and releases any locks/resources.  Once
+     * closed, no more logging or replays are permitted.
+     * 
+     * @return this FileMessageLog
+     * @throws IOException 
+     */
+    public FileMessageLog close() throws IOException {
         synchronized(_lock) {
             sync();
             _flock.release();
             _raf.close();
         }
+        return this;
     }
 }
