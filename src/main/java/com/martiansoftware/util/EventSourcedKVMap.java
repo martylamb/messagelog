@@ -11,6 +11,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -21,11 +22,17 @@ import java.util.TreeMap;
  */
 public class EventSourcedKVMap implements Map<String, String> {
 
+    // TODO: allow custom comparator
     private final FileMessageLog _fml;
-    private final TreeMap<String, String> _map = new TreeMap<>();
+    private final TreeMap<String, String> _map;
     
     public EventSourcedKVMap(File f) throws IOException {
-        _fml = new FileMessageLog(f, new MH());
+        this(f, null);
+    }
+    
+    public EventSourcedKVMap(File f, Comparator<? super String> comparator) throws IOException {
+        _map = comparator == null ? new TreeMap<String, String>() : new TreeMap<String, String>(comparator);
+        _fml = new FileMessageLog(f, new MH());        
     }
     
     @Override public int size() { return _map.size(); }
@@ -37,6 +44,12 @@ public class EventSourcedKVMap implements Map<String, String> {
     @Override public Collection<String> values() { return Collections.unmodifiableCollection(_map.values()); }
     @Override public Set<Entry<String, String>> entrySet() { return Collections.unmodifiableSet(_map.entrySet()); }
 
+    @Override public boolean equals(Object o) {
+        if (o == null || !(o instanceof EventSourcedKVMap)) return false;
+        return _map.equals(((EventSourcedKVMap) o)._map);
+    }
+    @Override public int hashCode() { return _map.hashCode(); }
+    
     public void close() throws IOException { _fml.close(); }
     public void sync() throws IOException { _fml.sync(); }
     
