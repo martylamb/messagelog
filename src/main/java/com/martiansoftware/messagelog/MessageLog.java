@@ -1,5 +1,6 @@
 package com.martiansoftware.messagelog;
 
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.List;
 
@@ -29,6 +30,15 @@ public interface MessageLog {
      * @throws IOException 
      */
     public MessageLog log(List<byte[]> messages) throws IOException;
+    
+    /**
+     * Returns a DataOutputStream that can be written to directly.  When the
+     * DataOutputStream is closed, its contents are written as a single message
+     * to the log.
+     * 
+     * @return a DataOutputStream that can be written to directly as a log message.
+     */
+    public DataOutputStream getLogOutputStream();
     
     /**
      * Plays back the entire log of all messages, supplying them one-by-one

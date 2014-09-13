@@ -1,5 +1,7 @@
 package com.martiansoftware.messagelog;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
@@ -147,6 +149,11 @@ public class FileMessageLog implements MessageLog {
         return this;
     }
     
+    @Override
+    public DataOutputStream getLogOutputStream() {
+        return new MessageDataOutputStream(new ByteArrayOutputStream());
+    }
+    
     private void failIfClosed() throws IOException {
         if (!_flock.isValid()) throw new IOException("File has been closed.");
     }
@@ -189,5 +196,20 @@ public class FileMessageLog implements MessageLog {
             _raf.close();
         }
         return this;
+    }
+    
+    private class MessageDataOutputStream extends DataOutputStream {
+        private final ByteArrayOutputStream _bout;
+        
+        private MessageDataOutputStream(ByteArrayOutputStream bout){ 
+            super(bout);
+            _bout = bout;
+        }
+        
+        @Override
+        public void close() throws IOException {
+            super.close();
+            log(_bout.toByteArray());
+        }
     }
 }
