@@ -104,14 +104,14 @@ public class FileMessageLogTest {
 
         FileMessageLog fml = newFML();
         start = System.currentTimeMillis();
-        for (int i = 0; i < 25; ++i) write(fml, "test " + i);
+        for (int i = 0; i < 2500; ++i) write(fml, "test " + i);
         fml.close();
         end = System.currentTimeMillis();
         dur1 = end - start;
         
         fml = newFML().setAutoSync(true);
         start = System.currentTimeMillis();
-        for (int i = 0; i < 25; ++i) write(fml, "test " + i);
+        for (int i = 0; i < 2500; ++i) write(fml, "test " + i);
         fml.close();
         end = System.currentTimeMillis();
         dur2 = end - start;
